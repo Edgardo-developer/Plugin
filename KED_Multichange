@@ -1,0 +1,222 @@
+<?php
+/**
+ * 
+ * Update DB products
+ * 
+ */
+class KED_Multichange
+{
+    public $open;
+    public $arg1;
+    public $arg2;
+    public $arg3;
+    public $cat; 
+    public function __construct($file){
+        $this->file = $file;
+        $this->arg1 = 'thickness';
+        $this->arg2 = 'width';
+        $this->arg3 = 'types';
+    }
+
+    // test CSV
+    final private function is_scv(){
+        if(isset($true)){
+            return true;
+        }else{
+            if (preg_match("#.csv#", $this->file) == true) {
+                $true = true;
+                return true;
+            }else{
+                return false;
+            }
+        }
+    }
+
+    // Open CSV
+    private function ked_open(){
+        if (self::is_scv() == true) {
+            $open = fopen($this->file, 'r');
+            return $open;
+        }
+    }
+
+    // get all category and all keys
+    private function ked_sort(){
+        $data_name = [];
+        $data_val = [];
+        $ink = 0;
+        $row = 1;
+        if (($handle = self::ked_open()) !== FALSE) {
+            while (($data = fgetcsv($handle, ",")) !== FALSE) {
+                $num = count($data);
+                $row++;
+                for ($c=0; $c < $num; $c++) {
+                    if ($ink == 1 && $c == 0) {
+                        $this->cat = $data[0];
+                    }
+                    if ($c !== 0 && $ink !== 0) {
+                        $data_val[$ink-1][] = $data[$c];
+                    }
+                }
+                $ink++;
+            }
+            fclose($handle);
+        }
+        return $data_val;
+    }
+    
+    // begin process attributes
+    private function ked_tax(){
+        $dates = self::ked_sort();
+        $whole = [];
+        // Нужно собрать все атрибуты в единое целое
+        foreach ($dates as $key => $value) {
+            foreach ($value as $k => $v) {
+                if ($k == 0) {
+                    $whole[0][] = $v;
+                }else if($k == 1){
+                    $whole[1][] = $v;
+                }else if($k == 2){
+                    $whole[2][] = $v;
+                }
+            }
+        }
+        return $whole;
+    }
+
+    // unical values for attrubute для WP_Query
+    private function ked_unic_tax(){
+        $mas = self::ked_tax();
+        $mas_fin = [];
+        $mas_fin[1] = array_values(array_unique($mas[0], SORT_REGULAR));
+        $mas_fin[2] = array_values(array_unique($mas[1], SORT_REGULAR));
+        $mas_fin[3] = array_values(array_unique($mas[2], SORT_REGULAR));
+        return $mas_fin;
+    }
+
+    // meta_query для product_variation
+    private function ked_tax_(){
+        $unic_tax = self::ked_unic_tax();
+        $tax_query = array( 'relation' => 'AND', );
+                $a = array(
+                    'relation'  => 'AND',
+                    array(
+                       'taxonomy' => 'product_cat',
+                       'field' => 'slug',
+                       'terms' => $this->cat,
+                    ),
+                    array(
+                        'relation'  => 'OR',
+                    ),
+                );
+                $i = 0; 
+                foreach ($unic_tax as $key => $value) {
+                    if ($i == 0) {
+                        $pa = "pa_$this->arg1";
+                    }else if($i == 1){
+                        $pa = "pa_$this->arg2";
+                    }else if($i == 2){
+                        $pa = "pa_$this->arg3";
+                    }
+                    $v_array = array();
+                    foreach ($value as $k => $v) {
+                        $v_array[] = $v;
+                    }
+                    $new = array(
+                        'taxonomy'  => $pa,
+                        'field'    => 'slug',
+                        'terms'    => $v_array,
+                    );
+                    array_push($a[1], $new);
+                    $i++;
+                }
+                $tax_query[] = $a;
+                return $tax_query;
+    }
+
+    // tax_query для product
+    private function ked_meta_(){
+        $unic_tax = self::ked_unic_tax();
+        $tax_query = array( 'relation' => 'AND', );
+                $a = array(
+                    'relation'  => 'AND',
+                    array(
+                        'relation'  => 'OR',
+                    ),
+                );
+               $i = 0; 
+                foreach ($unic_tax as $key => $value) {
+                    if ($i == 0) {
+                        $pa = "attribute_pa_$this->arg1";
+                    }else if($i == 1){
+                        $pa = "attribute_pa_$this->arg2";
+                    }else if($i == 2){
+                        $pa = "attribute_pa_$this->arg3";
+                    }
+                    $v_array = array();
+                    foreach ($value as $k => $v) {
+                        $v_array[] = $v;
+                    }
+                    $new = array(
+                        'key'  => $pa,
+                        'value'    => $v_array,
+                    );
+                    array_push($a[0], $new);
+                    $i++;
+                }
+                // Сначало оформляем один атрибут а потом другой. Через push закидываем в конец, соблюдаем правила запятых.
+                $tax_query[] = $a;
+                return $tax_query;
+    }
+    
+    // изменение цены у товара
+    private function ked_change_price($product){
+        $ked_k_v = KED_Multichange::ked_sort();
+        $arg1 = $product->get_attribute($this->arg1);
+        $arg2 = $product->get_attribute($this->arg2);
+        $arg3 = $product->get_attribute($this->arg3);
+        if (null !== $arg1 && "" !== $arg1 && null !== $arg2 && "" !== $arg2 && null !== $arg3 && "" !== $arg3) {
+            $count_start = 0;
+            $count_finish = count($ked_k_v);
+            while ($count_start < $count_finish) {
+                if(strpos($ked_k_v[$count_start][0], $arg1) !== false && strpos($ked_k_v[$count_start][1], $arg2) !== false && strpos($ked_k_v[$count_start][2], $arg3) !== false){
+                        update_post_meta($product->get_ID(), '_regular_price', (float)$ked_k_v[$count_start][3]);
+                        update_post_meta($product->get_ID(), '_price', (float)$ked_k_v[$count_start][3]);
+                }
+                $count_start++;
+            }
+        }else{
+            return;
+        } 
+    }
+
+    // Полный вывод
+    public function ked_query(){
+        $args_product = array(
+            'post_type'     => 'product',
+            'tax_query'     => self::ked_tax_(),
+        );
+        $args_var_product = array(
+            'post_type'     => 'product_variation',
+            'meta_query'    => self::ked_meta_(),
+        );
+        $query_product = new WP_Query( $args_product );
+        $query_var_product = new WP_Query( $args_var_product );
+        $query = new WP_Query();
+        $query->posts = array_merge($query_product->posts, $query_var_product->posts);
+        if (!is_array($query->posts) || count($query->posts) == 0) {
+            echo "<br>";
+            echo "<h3>Подходящих товаров не найдено</h3>";
+        }else{
+            foreach ($query as $key => $value) {
+                if (is_array($value) && count($value) > 0) {
+                    foreach ($value as $k => $v) {
+                        $product_object = wc_get_product($v->ID);
+                        if ($product_object->is_type('variation') || $product_object->is_type('simple')) {
+                            KED_Multichange::ked_change_price($product_object);
+                        }
+                    }
+                }
+            }
+        }
+}}
