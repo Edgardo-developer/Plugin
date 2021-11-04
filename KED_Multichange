@@ -169,7 +169,7 @@ class KED_Multichange
                 return $tax_query;
     }
     
-    // изменение цены у товара
+    // update price
     private function ked_change_price($product){
         $ked_k_v = KED_Multichange::ked_sort();
         $arg1 = $product->get_attribute($this->arg1);
