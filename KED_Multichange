@@ -7,15 +7,12 @@
 class KED_Multichange
 {
     public $open;
-    public $arg1;
-    public $arg2;
-    public $arg3;
+    private $arg1 = 'thickness';
+    private $arg2 = 'width';
+    private $arg3 = 'types';
     public $cat; 
     public function __construct($file){
         $this->file = $file;
-        $this->arg1 = 'thickness';
-        $this->arg2 = 'width';
-        $this->arg3 = 'types';
     }
 
     // test CSV
@@ -66,10 +63,9 @@ class KED_Multichange
     }
     
     // begin process attributes
-    private function ked_tax(){
+    private static function ked_tax(){
         $dates = self::ked_sort();
         $whole = [];
-        // Нужно собрать все атрибуты в единое целое
         foreach ($dates as $key => $value) {
             foreach ($value as $k => $v) {
                 if ($k == 0) {
@@ -112,11 +108,11 @@ class KED_Multichange
                 $i = 0; 
                 foreach ($unic_tax as $key => $value) {
                     if ($i == 0) {
-                        $pa = "pa_$this->arg1";
+                        $pa = "pa_".$self::$arg1;
                     }else if($i == 1){
-                        $pa = "pa_$this->arg2";
+                        $pa = "pa_".$self::$arg2;
                     }else if($i == 2){
-                        $pa = "pa_$this->arg3";
+                        $pa = "pa_".$self::$arg3;
                     }
                     $v_array = array();
                     foreach ($value as $k => $v) {
@@ -135,7 +131,7 @@ class KED_Multichange
     }
 
     // tax_query для product
-    private function ked_meta_(){
+    private static function ked_meta_(){
         $unic_tax = self::ked_unic_tax();
         $tax_query = array( 'relation' => 'AND', );
                 $a = array(
@@ -147,11 +143,11 @@ class KED_Multichange
                $i = 0; 
                 foreach ($unic_tax as $key => $value) {
                     if ($i == 0) {
-                        $pa = "attribute_pa_$this->arg1";
+                        $pa = "attribute_pa_".self::$arg1;
                     }else if($i == 1){
-                        $pa = "attribute_pa_$this->arg2";
+                        $pa = "attribute_pa_".self::$arg2;
                     }else if($i == 2){
-                        $pa = "attribute_pa_$this->arg3";
+                        $pa = "attribute_pa_".self::$arg3;
                     }
                     $v_array = array();
                     foreach ($value as $k => $v) {
@@ -164,7 +160,6 @@ class KED_Multichange
                     array_push($a[0], $new);
                     $i++;
                 }
-                // Сначало оформляем один атрибут а потом другой. Через push закидываем в конец, соблюдаем правила запятых.
                 $tax_query[] = $a;
                 return $tax_query;
     }
@@ -172,9 +167,9 @@ class KED_Multichange
     // update price
     private function ked_change_price($product){
         $ked_k_v = KED_Multichange::ked_sort();
-        $arg1 = $product->get_attribute($this->arg1);
-        $arg2 = $product->get_attribute($this->arg2);
-        $arg3 = $product->get_attribute($this->arg3);
+        $arg1 = $product->get_attribute(self::$arg1);
+        $arg2 = $product->get_attribute(self::$arg2);
+        $arg3 = $product->get_attribute(self::$arg3);
         if (null !== $arg1 && "" !== $arg1 && null !== $arg2 && "" !== $arg2 && null !== $arg3 && "" !== $arg3) {
             $count_start = 0;
             $count_finish = count($ked_k_v);
@@ -190,11 +185,10 @@ class KED_Multichange
         } 
     }
 
-    // Полный вывод
     public function ked_query(){
         $args_product = array(
             'post_type'     => 'product',
-            'tax_query'     => self::ked_tax_(),
+            'tax_query'     => $this->ked_tax_(),
         );
         $args_var_product = array(
             'post_type'     => 'product_variation',
